@@ -88,6 +88,7 @@ analyzeBtn.addEventListener("click", async () => {
     const file = fileInput.files[0];
 
     const validExtensions = [".xlsx", ".xls"];
+
     const extension = file.name
         .substring(file.name.lastIndexOf("."))
         .toLowerCase();
@@ -124,36 +125,51 @@ analyzeBtn.addEventListener("click", async () => {
         }
 
         // --------------------------------
-        // Generate embeddings
+        // Give every raw occurrence an ID
         // --------------------------------
 
-        console.log("Generating embeddings...");
+        const actionItems = result.actions.map((action, index) => ({
+            id: index + 1,
+            action
+        }));
 
-        const embeddings = await getEmbeddings(
-            result.actions
-        );
-
-        console.log(
-            "Embeddings generated:",
-            embeddings.length
-        );
+        console.log("Raw action occurrences:", actionItems.length);
+        console.log("Actions sent to AI:", actionItems);
 
         // --------------------------------
-        // Cluster recurring issues
+        // AI grouping
         // --------------------------------
 
-        console.log("Clustering actions...");
+        console.log("Sending actions to Nemotron...");
 
-        const issues = clusterActions(
-            result.actions,
-            embeddings,
-            minOccurrences.value
+        const groups = await analyzeActions(actionItems);
+
+        console.log("AI groups:", groups);
+
+        // --------------------------------
+        // Validate AI grouping
+        // --------------------------------
+
+        validateGroups(groups, actionItems);
+
+        // --------------------------------
+        // Threshold
+        // --------------------------------
+
+        const threshold =
+            minOccurrences.value === "20+"? 20: Number(minOccurrences.value);
+
+        // --------------------------------
+        // Build recurring issues
+        // --------------------------------
+
+        const issues = buildRecurringIssues(
+            groups,
+            actionItems,
+            threshold
         );
 
-        console.log(
-            "Recurring issues:",
-            issues
-        );
+        console.log("Recurring issues:", issues);
 
         // --------------------------------
         // Display results
@@ -243,7 +259,7 @@ async function readExcelFile(file) {
         throw new Error("No records found for the selected date range.");
     }
 
-    // Keep only what the AI needs
+    // Keep every usable Action occurrence
     const actions = filteredRows
         .map(row => String(row.Action).trim())
         .filter(action => action);
@@ -337,6 +353,110 @@ function finishAnalysis() {
 
 
 // -----------------------------
+// Validate AI groups
+// -----------------------------
+
+function validateGroups(groups, actionItems) {
+
+    if (!Array.isArray(groups)) {
+        throw new Error("AI returned an invalid grouping.");
+    }
+
+    const validIds = new Set(
+        actionItems.map(item => item.id)
+    );
+
+    const seenIds = new Set();
+
+    for (const group of groups) {
+
+        if (
+            !group ||
+            typeof group.label !== "string" ||
+            !Array.isArray(group.items)
+        ) {
+            throw new Error("AI returned an invalid group.");
+        }
+
+        for (const id of group.items) {
+
+            if (!validIds.has(id)) {
+                throw new Error(
+                    `AI returned an unknown action ID: ${id}`
+                );
+            }
+
+            if (seenIds.has(id)) {
+                throw new Error(
+                    `AI assigned action ID ${id} to more than one group.`
+                );
+            }
+
+            seenIds.add(id);
+        }
+    }
+
+    // Every input action must appear exactly once.
+    if (seenIds.size !== validIds.size) {
+
+        const missingIds = [];
+
+        for (const id of validIds) {
+
+            if (!seenIds.has(id)) {
+                missingIds.push(id);
+            }
+        }
+
+        throw new Error(
+            `AI did not assign all actions to groups. Missing IDs: ${missingIds.join(", ")}`
+        );
+    }
+}
+
+
+// -----------------------------
+// Build recurring issues
+// -----------------------------
+
+function buildRecurringIssues(groups, actionItems, threshold) {
+
+    const actionMap = new Map(
+        actionItems.map(item => [item.id, item])
+    );
+
+    const issues = [];
+
+    for (const group of groups) {
+
+        if (!group || !Array.isArray(group.items)) {
+            continue;
+        }
+
+        // Every item represents one actual historical occurrence.
+        let count = 0;
+
+        for (const id of group.items) {
+
+            if (actionMap.has(id)) {
+                count++;
+            }
+        }
+
+        if (count >= threshold) {
+
+            issues.push({
+                issue: group.label,
+                count
+            });
+        }
+    }
+
+    return issues.sort((a, b) => b.count - a.count);
+}
+
+
+// -----------------------------
 // Results
 // -----------------------------
 
@@ -350,6 +470,7 @@ function clearResults() {
         </tr>
     `;
 }
+
 
 function displayResults(issues) {
 
@@ -376,6 +497,7 @@ function displayResults(issues) {
         .join("");
 }
 
+
 function escapeHtml(value) {
 
     return String(value)
@@ -386,6 +508,7 @@ function escapeHtml(value) {
         .replace(/'/g, "&#039;");
 }
 
+
 // -----------------------------
 // Errors / warnings
 // -----------------------------
@@ -393,6 +516,7 @@ function escapeHtml(value) {
 function showError(message) {
     errorMessage.textContent = message;
 }
+
 
 function clearError() {
     errorMessage.textContent = "";

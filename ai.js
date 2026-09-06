@@ -1,12 +1,12 @@
-const AI_URL = "http://127.0.0.1:1234/v1/embeddings";
-const MODEL = "text-embedding-qwen3-embedding-8b";
+const AI_URL = "http://127.0.0.1:1234/v1/chat/completions";
+const MODEL = "nvidia/nemotron-3-nano-4b";
 
+async function analyzeActions(actions) {
 
-// -----------------------------
-// Get embeddings
-// -----------------------------
-
-async function getEmbeddings(actions) {
+    const prompt = ANALYSIS_PROMPT.replace(
+        "{{ACTIONS}}",
+        JSON.stringify(actions, null, 2)
+    );
 
     const response = await fetch(AI_URL, {
         method: "POST",
@@ -15,7 +15,19 @@ async function getEmbeddings(actions) {
         },
         body: JSON.stringify({
             model: MODEL,
-            input: actions
+            messages: [
+                {
+                    role: "system",
+                    content:
+                        "You are a precise data clustering assistant. Follow the requested JSON format exactly."
+                },
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ],
+            temperature: 0.1,
+            //max_tokens: 4096
         })
     });
 
@@ -27,40 +39,26 @@ async function getEmbeddings(actions) {
 
     const data = await response.json();
 
-    if (!data.data || !Array.isArray(data.data)) {
-        throw new Error("AI returned an invalid embedding response.");
+    if (
+        !data.choices ||
+        !Array.isArray(data.choices) ||
+        !data.choices[0]?.message?.content
+    ) {
+        throw new Error("AI returned an invalid response.");
     }
 
-    return data.data
-        .sort((a, b) => a.index - b.index)
-        .map(item => item.embedding);
-}
+    let content = data.choices[0].message.content.trim();
 
+    // Handle models that wrap JSON in ```json ... ```
+    content = content
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
 
-// -----------------------------
-// Cosine similarity
-// -----------------------------
-
-function cosineSimilarity(a, b) {
-
-    if (a.length !== b.length) {
-        throw new Error("Embedding dimensions do not match.");
+    try {
+        return JSON.parse(content);
+    } catch {
+        throw new Error("AI returned invalid JSON.");
     }
-
-    let dotProduct = 0;
-    let magnitudeA = 0;
-    let magnitudeB = 0;
-
-    for (let i = 0; i < a.length; i++) {
-        dotProduct += a[i] * b[i];
-        magnitudeA += a[i] * a[i];
-        magnitudeB += b[i] * b[i];
-    }
-
-    if (magnitudeA === 0 || magnitudeB === 0) {
-        return 0;
-    }
-
-    return dotProduct /
-        (Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB));
 }
