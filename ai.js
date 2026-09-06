@@ -1,5 +1,7 @@
 const AI_URL = "http://127.0.0.1:1234/v1/chat/completions";
-const MODEL = "nvidia/nemotron-3-nano-4b";
+//const MODEL = "nvidia/nemotron-3-nano-4b";
+const MODEL = "google/gemma-4-12b";
+//const MODEL = "prism-ml/bonsai-27b";
 
 async function analyzeActions(actions) {
 

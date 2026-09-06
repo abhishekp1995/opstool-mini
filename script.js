@@ -140,7 +140,7 @@ analyzeBtn.addEventListener("click", async () => {
         // AI grouping
         // --------------------------------
 
-        console.log("Sending actions to Nemotron...");
+        console.log("Sending actions to LLM...");
 
         const groups = await analyzeActions(actionItems);
 
