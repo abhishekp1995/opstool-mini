@@ -12,6 +12,7 @@ const resultsBody = document.getElementById("resultsBody");
 // File selection
 // -----------------------------
 
+
 dropZone.addEventListener("click", () => {
     if (!fromDate.disabled) {
         fileInput.click();
@@ -52,6 +53,7 @@ minOccurrences.addEventListener("change", () => {
     clearResults();
     clearError();
 });
+
 
 // -----------------------------
 // Analyze button state
