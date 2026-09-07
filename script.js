@@ -157,7 +157,7 @@ analyzeBtn.addEventListener("click", async () => {
         // --------------------------------
 
         const threshold =
-            minOccurrences.value === "20+"? 20: Number(minOccurrences.value);
+            minOccurrences.value === "20+" ? 20 : Number(minOccurrences.value);
 
         // --------------------------------
         // Build recurring issues
