@@ -1,10 +1,12 @@
-const AI_URL = "http://127.0.0.1:1234/v1/chat/completions";
-//const MODEL = "nvidia/nemotron-3-nano-4b";
-const MODEL = "google/gemma-4-12b";
-//const MODEL = "qwen/qwen3.5-9b";
-//const MODEL = "prism-ml/bonsai-27b";
+const AI_URL = "/api/analyze";
 
 async function analyzeActions(actions) {
+
+    const apiKey = window.prompt("Enter your Claude API key:");
+
+    if (!apiKey || !apiKey.trim()) {
+        throw new Error("Claude API key is required.");
+    }
 
     const prompt = ANALYSIS_PROMPT.replace(
         "{{ACTIONS}}",
@@ -17,42 +19,44 @@ async function analyzeActions(actions) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            model: MODEL,
-            messages: [
-                {
-                    role: "system",
-                    content:
-                        "You are a precise data clustering assistant. Follow the requested JSON format exactly."
-                },
-                {
-                    role: "user",
-                    content: prompt
-                }
-            ],
-            temperature: 0.1,
-            //max_tokens: 4096
+            apiKey: apiKey.trim(),
+            prompt: prompt,
+            actions: actions
         })
     });
 
     if (!response.ok) {
-        throw new Error(
-            `AI request failed: ${response.status} ${response.statusText}`
-        );
+        let errorMessage =
+            `AI request failed: ${response.status} ${response.statusText}`;
+
+        try {
+            const errorData = await response.json();
+
+            if (errorData?.error?.message) {
+                errorMessage += ` - ${errorData.error.message}`;
+            } else if (errorData?.error) {
+                errorMessage += ` - ${errorData.error}`;
+            }
+        } catch {
+            // Keep the original HTTP error message.
+        }
+
+        throw new Error(errorMessage);
     }
 
     const data = await response.json();
 
     if (
-        !data.choices ||
-        !Array.isArray(data.choices) ||
-        !data.choices[0]?.message?.content
+        !data.content ||
+        !Array.isArray(data.content) ||
+        !data.content[0]?.text
     ) {
         throw new Error("AI returned an invalid response.");
     }
 
-    let content = data.choices[0].message.content.trim();
+    let content = data.content[0].text.trim();
 
-    // Handle models that wrap JSON in ```json ... ```
+    // Remove Markdown code fences if Claude returns them.
     content = content
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
