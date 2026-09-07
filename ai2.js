@@ -1,5 +1,4 @@
-const AI_URL = "http://localhost:6655/anthropic/v1/messages";
-const MODEL = "anthropic--claude-haiku-latest";
+const AI_URL = "/api/analyze";
 
 async function analyzeActions(actions) {
 
@@ -17,19 +16,12 @@ async function analyzeActions(actions) {
     const response = await fetch(AI_URL, {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey.trim()}`,
-            "anthropic-version": "2023-06-01"
+            "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            model: MODEL,
-            max_tokens: 16384,
-            messages: [
-                {
-                    role: "user",
-                    content: prompt
-                }
-            ]
+            apiKey: apiKey.trim(),
+            prompt: prompt,
+            actions: actions
         })
     });
 
@@ -42,6 +34,8 @@ async function analyzeActions(actions) {
 
             if (errorData?.error?.message) {
                 errorMessage += ` - ${errorData.error.message}`;
+            } else if (errorData?.error) {
+                errorMessage += ` - ${errorData.error}`;
             }
         } catch {
             // Keep the original HTTP error message.
